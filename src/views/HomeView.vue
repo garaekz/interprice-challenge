@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import type { Item, Field, BondType } from '@/types';
 import TableFilters from '@/components/TableFilters.vue';
 import { useDataStore } from '@/stores/data';
 import { storeToRefs } from 'pinia';
@@ -7,21 +8,15 @@ import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 
 const store = useDataStore();
-const { availableFields, selectedCurrency, selectedYears, selectedField, sortColumn, sortOrder, transformedData } = storeToRefs(store);
-const { getMinValues, toggleColumnSort } = store;
+
+const { availableFields, search, selectedCurrency, selectedYears, selectedField, sortColumn, sortOrder, filteredData } = storeToRefs(store);
+const { getMinValues, formatValueByDisplay, getAverageValue, toggleColumnSort } = store;
 
 const dateFilter = (date: string | null) => {
   if (!date) return '';
   dayjs.extend(customParseFormat);
   return dayjs(date, 'YYYY-MM-DD').format('DD-MMM-YY');
 };
-
-const formatValueByDisplay = (field: string, value?: number): string => {
-  if (!value) return '';
-  if (field === 'Yield') return `${value.toFixed(3)}%`;
-  if (field === '3MLSpread' || field === 'Spread') return `${+value > 0 ? '+' : ''}${Math.round(value)}bp`;
-  return `${value}`;
-}
 
 const expandedRows = ref<string[]>([]);
 const toggleExpandedRows = (row: string) => {
@@ -32,25 +27,29 @@ const toggleExpandedRows = (row: string) => {
   }
 };
 
-function getAverageValue(data: any[], currency: string, years: string, bondType: string, valueType: string): string {
-  const matchingItems = data.filter(item => item && item.Quote?.[currency]?.[years]?.[bondType]?.[valueType] !== undefined && item.Quote[currency][years][bondType][valueType] !== null);
-
-  if (matchingItems.length === 0) {
-    return '';
-  }
-
-  const sum = matchingItems.reduce((acc, item) => acc + item.Quote[currency][years][bondType][valueType], 0);
-  const count = matchingItems.length;
-
-  return formatValueByDisplay(valueType, sum / count);
-}
-
+const isMinValue = (
+    items: Item[],
+    item: Item,
+    currency: string,
+    year: number,
+    bondType: BondType,
+    field: Field
+  ): boolean => {
+    const minValues = getMinValues(items, currency, year, field, bondType);
+    const value = item.Quote?.[currency]?.[year]?.[bondType]?.[field] ?? 0;
+    return value === minValues;
+  };
 </script>
 
 <template>
   <main class="w-full flex flex-col justify-center">
     <div class="w-full max-w-7xl mt-20 mx-auto px-4">
       <TableFilters />
+      <div class="w-1/3 my-4">
+        <input 
+          class="w-full border border-gray-400 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          type="text" v-model="search" placeholder="Filter by company name...">
+      </div>
       <table class="w-full">
         <thead class="uppercase">
           <tr>
@@ -119,12 +118,9 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
           </tr>
         </thead>
         <tbody>
-          <template v-for="(item, index) in transformedData" :key="item.Id">
+          <template v-for="(item, index) in filteredData" :key="item.Id">
             <tr
-              :class="{
-                'border-b' : index !== transformedData.length - 1,
-              }"
-              class="border-gray-200">
+              class="border-t border-gray-200">
               <td class="w-8">
                 <button 
                   v-if="item.Id && item.Quote"
@@ -156,7 +152,7 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
               <template v-for="year in selectedYears" :key="year">
                 <td 
                   :class="{
-                    'bg-orange-100/70': item.Quote?.[selectedCurrency]?.[year]?.['FIX']?.[selectedField] === getMinValues(transformedData, selectedCurrency, year, selectedField, 'FIX'),
+                    'bg-orange-100/70': isMinValue(filteredData, item, selectedCurrency, year, 'FIX' as BondType, selectedField),
                   }"
                   class="font-thin text-gray-800 text-center w-20">
                   {{ formatValueByDisplay(selectedField, item.Quote?.[selectedCurrency]?.[year]?.['FIX']?.[selectedField]) }}
@@ -169,10 +165,7 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
             </tr>
             <template v-for="field in availableFields" :key="field" >
               <tr
-                :class="{
-                  'border-b' : index !== transformedData.length - 1,
-                }"
-                class="border-gray-200" v-if="(field !== selectedField) && expandedRows.includes(item.Id!)">
+                class="border-t border-gray-200" v-if="(field !== selectedField) && expandedRows.includes(item.Id!)">
                 <td></td>
                 <td></td>
                 <td class="font-thin text-gray-800 py-1.5">
@@ -200,10 +193,10 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
             </td>
             <template v-for="year in selectedYears" :key="year">
               <td class="text-center w-20">
-                {{ getAverageValue(transformedData, selectedCurrency, `${year}`, 'FIX', selectedField) }}
+                {{ getAverageValue(filteredData, selectedCurrency, year, 'FIX', selectedField) }}
               </td>
               <td class="text-center w-20">
-                {{ getAverageValue(transformedData, selectedCurrency, `${year}`, 'FRN', selectedField) }}
+                {{ getAverageValue(filteredData, selectedCurrency, year, 'FRN', selectedField) }}
               </td>
             </template>
           </tr>

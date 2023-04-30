@@ -9,10 +9,10 @@ export interface Item {
 
 export interface FormattedQuote {
   [key: string]: {
-    [key: number]: {
+    [key: string]: {
       [key: string]: Quote;
     };
-  };
+  }
 }
 
 export interface Quote {
@@ -20,7 +20,7 @@ export interface Quote {
   Currency: string
   Years: number
   CouponType: string
-  Spread: number
+  Spread: number | null
   Yield: number | null
   '3MLSpread': number | null
 }

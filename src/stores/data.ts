@@ -47,10 +47,17 @@ const sortData = (data: Item[], column: string, order: string): Item[] => {
   return [...sorted, ...sortedNoQuotes]
 }
 
+const searchFilter = (item: Item, search?: string) => {
+  if (!search) return true
+  return item.Company.toLowerCase().includes(search.toLowerCase())
+}
+
 export const useDataStore = defineStore('data', () => {
   const items = file.Items
-  const transformData = (json: any, sortColumn = 'DateSent', sortOrder = 'desc'): Item[] => {
+
+  const transformData = (json: any, sortColumn = 'DateSent', sortOrder = 'desc', search?: string): Item[] => {
     const companies = json.Items.map((item: any) => {
+      if (!searchFilter(item, search)) return null
       const quote: FormattedQuote = {}
 
       item.Quote?.forEach((q: Quote) => {
@@ -74,7 +81,9 @@ export const useDataStore = defineStore('data', () => {
         Preferred: item.Preferred,
         Quote: Object.keys(quote).length === 0 ? null : quote
       }
-    })
+    }).filter(Boolean)
+
+    console.log(companies)
 
     return sortData(companies, sortColumn, sortOrder)
   }
@@ -83,9 +92,11 @@ export const useDataStore = defineStore('data', () => {
   const currencies = [
     ...new Set(items.map((item) => item.Quote?.map((q) => q.Currency)).flat())
   ].filter(Boolean)
+  const search = ref('')
   const years: Ref<{ [key: string]: number[] }> = ref({})
   const selectedCurrency: Ref<string> = ref('USD')
   const transformedData = ref(transformData(file))
+  const filteredData = ref(transformedData.value)
   const sortColumn: Ref<'DateSent' | 'Company'> = ref('DateSent')
   const sortOrder: Ref<'asc' | 'desc'> = ref('desc')
   const availableYears: Ref<number[]> = ref(years.value[selectedCurrency.value])
@@ -103,17 +114,61 @@ export const useDataStore = defineStore('data', () => {
     }
   }
 
+  const formatValueByDisplay = (field: string, value?: number): string => {
+    if (!value) return ''
+    if (field === 'Yield') return `${value.toFixed(3)}%`
+    if (field === '3MLSpread' || field === 'Spread')
+      return `${+value > 0 ? '+' : ''}${Math.round(value)}bp`
+    return `${value}`
+  }
+
+  const getAverageValue = (
+    data: Item[],
+    currency: string,
+    years: number,
+    bondType: string,
+    valueType: string
+  ): string => {
+    const matchingItems = data.filter(
+      (item) =>
+        item &&
+        item.Quote?.[currency]?.[years]?.[bondType]?.[valueType] !== undefined &&
+        item.Quote[currency][years][bondType][valueType] !== null
+    )
+
+    if (matchingItems.length === 0) {
+      return ''
+    }
+
+    const sum = matchingItems.reduce(
+      (acc, item) => acc + item.Quote?.[currency][years][bondType][valueType],
+      0
+    )
+    const count = matchingItems.length
+
+    return formatValueByDisplay(valueType, sum / count)
+  }
+
   // Watchers
   watch(selectedCurrency, () => {
     selectedYears.value = availableYears.value = years.value[selectedCurrency.value]
   })
 
   watch(sortColumn, (newValue) => {
-    transformedData.value = sortData(transformedData.value, newValue, sortOrder.value)
+    filteredData.value = sortData(filteredData.value, newValue, sortOrder.value)
   })
 
   watch(sortOrder, (newValue) => {
-    transformedData.value = sortData(transformedData.value, sortColumn.value, newValue)
+    filteredData.value = sortData(filteredData.value, sortColumn.value, newValue)
+  })
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const DEBOUNCE_TIME = 500;
+  watch(search, (newValue) => {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      filteredData.value = transformData(file, sortColumn.value, sortOrder.value, newValue);
+    }, DEBOUNCE_TIME);
   })
 
   // Make sure the years are always sorted
@@ -121,36 +176,45 @@ export const useDataStore = defineStore('data', () => {
     selectedYears.value = selectedYears.value.sort((a, b) => a - b)
   })
 
-  function getMinValues(items: Item[], currency: string, year: number, field: Field, bondType: BondType): number {
-    const minValues: { [key: string]: number } = {};
-  
+  const getMinValues = (
+    items: Item[],
+    currency: string,
+    year: number,
+    field: Field,
+    bondType: BondType
+  ): number => {
+    const minValues: { [key: string]: number } = {}
+
     items.forEach((item) => {
       if (item.Quote?.[currency]?.[year]?.[bondType]?.[field]) {
-        let value = item.Quote?.[currency]?.[year]?.[bondType]?.[field];
-        if (!value) value = 0;
-        const key = `${currency}_${year}_${field}_${bondType}`;
-  
+        let value = item.Quote?.[currency]?.[year]?.[bondType]?.[field]
+        if (!value) value = 0
+        const key = `${currency}_${year}_${field}_${bondType}`
+
         if (minValues[key] === undefined || value < minValues[key]) {
-          minValues[key] = value;
+          minValues[key] = value
         }
       }
-    });
-    
-    return Object.values(minValues).sort((a, b) => a - b)[0];
+    })
+
+    return Object.values(minValues).sort((a, b) => a - b)[0]
   }
 
   return {
     availableCurrencies,
     availableFields,
     availableYears,
+    formatValueByDisplay,
+    getAverageValue,
     getMinValues,
+    search,
     selectedCurrency,
     selectedField,
     selectedYears,
     sortColumn,
     sortOrder,
     toggleColumnSort,
-    transformedData,
-    years,
+    filteredData,
+    years
   }
 })

@@ -118,7 +118,7 @@ const isMinValue = (
           </tr>
         </thead>
         <tbody>
-          <template v-for="(item, index) in filteredData" :key="item.Id">
+          <template v-for="item in filteredData" :key="item.Id">
             <tr
               class="border-t border-gray-200">
               <td class="w-8">

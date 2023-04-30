@@ -1,6 +1,6 @@
-import { ref, watch, type Ref, computed } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { Item, FormattedQuote, Quote, Field, BondType, MinValue } from '@/types'
+import type { Item, FormattedQuote, Quote, Field, BondType } from '@/types'
 import file from '@/data.json'
 
 const sortItemsByColumn = (items: any[], column: string, direction: string): any[] => {
@@ -114,7 +114,7 @@ export const useDataStore = defineStore('data', () => {
     }
   }
 
-  const formatValueByDisplay = (field: string, value?: number): string => {
+  const formatValueByDisplay = (field: string, value?: number | null): string => {
     if (!value) return ''
     if (field === 'Yield') return `${value.toFixed(3)}%`
     if (field === '3MLSpread' || field === 'Spread')

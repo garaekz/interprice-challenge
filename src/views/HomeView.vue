@@ -8,7 +8,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 
 const store = useDataStore();
 const { availableFields, selectedCurrency, selectedYears, selectedField, sortColumn, sortOrder, transformedData } = storeToRefs(store);
-const { toggleColumnSort } = store;
+const { getMinValues, toggleColumnSort } = store;
 
 const dateFilter = (date: string | null) => {
   if (!date) return '';
@@ -154,9 +154,14 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
                 {{ item.Company }}
               </td>
               <template v-for="year in selectedYears" :key="year">
-                <td class="font-thin text-gray-800 text-center w-20">
+                <td 
+                  :class="{
+                    'bg-orange-100/70': item.Quote?.[selectedCurrency]?.[year]?.['FIX']?.[selectedField] === getMinValues(transformedData, selectedCurrency, year, selectedField, 'FIX'),
+                  }"
+                  class="font-thin text-gray-800 text-center w-20">
                   {{ formatValueByDisplay(selectedField, item.Quote?.[selectedCurrency]?.[year]?.['FIX']?.[selectedField]) }}
                 </td>
+                <!-- The image didn't showed higlited Frn col, don't know if I need to add it -->
                 <td class="font-thin text-gray-800 text-center w-20">
                   {{ formatValueByDisplay(selectedField, item.Quote?.[selectedCurrency]?.[year]?.['FRN']?.[selectedField]) }}
                 </td>
@@ -174,7 +179,8 @@ function getAverageValue(data: any[], currency: string, years: string, bondType:
                   {{ field }}
                 </td>
                 <template v-for="year in selectedYears" :key="year">
-                  <td class="font-thin text-gray-800 text-center w-20">
+                  <td
+                    class="font-thin text-gray-800 text-center w-20">
                     {{ formatValueByDisplay(field, item.Quote?.[selectedCurrency]?.[year]?.['FIX']?.[field]) }}
                   </td>
                   <td class="font-thin text-gray-800 text-center w-20">

@@ -1,5 +1,5 @@
 
-export interface Company {
+export interface Item {
   Id: string | null;
   DateSent: string | null;
   Company: string;
@@ -23,4 +23,14 @@ export interface Quote {
   Spread: number
   Yield: number | null
   '3MLSpread': number | null
+}
+
+export type Field = "Spread" | "Yield" | "3MLSpread";
+export type BondType = "FIX" | "FRN";
+export interface MinValue {
+  currency: string;
+  year: string;
+  field: Field;
+  bondType: BondType;
+  value: number;
 }
